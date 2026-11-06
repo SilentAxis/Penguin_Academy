@@ -16,6 +16,20 @@ const { chromium } = require('playwright');
   await page.goto('file://' + path.resolve(__dirname, '..', 'index.html'));
   await page.waitForTimeout(300);
 
+  // Real mouse + keyboard, not the synthetic handleKey() hook below: this is what an actual
+  // visitor does, and it's the only thing that would have caught the "click doesn't focus the
+  // hidden input" regression (clicking #term stole focus back from #kbd via the browser's own
+  // default tabindex-focus behaviour, since mousedown never called preventDefault()).
+  await page.click('#term');
+  const active = await page.evaluate(() => document.activeElement && document.activeElement.id);
+  if (active !== 'kbd') errs.push(`clicking the terminal focused "#${active}", not "#kbd" -- typing would silently do nothing`);
+  await page.keyboard.type('journalctl -k');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(150);
+  const typedLine = await page.evaluate(() => window.__xeTrainer.S.lines.some(l => l.text.includes('journalctl -k')));
+  if (!typedLine) errs.push('typing with the real keyboard did not reach the shell');
+  await page.evaluate(() => { window.__xeTrainer.S.lines = []; window.__xeTrainer.S.pager = null; });
+
   const keys = async (...ks) => { for (const k of ks) await page.evaluate(k => window.__xeTrainer.handleKey(k), k); };
   const type = async (s, enter = true) => { await keys('C-u'); for (const ch of s) await keys(ch === ' ' ? 'Space' : ch); if (enter) await keys('Enter'); };
   const inPager = () => page.evaluate(() => !!window.__xeTrainer.S.pager);

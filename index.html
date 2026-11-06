@@ -1117,7 +1117,7 @@ function showView(v) {
 
 /* ---------------- input wiring ---------------- */
 function focusTerm() { try { $('#kbd').focus({preventScroll: true}); } catch (e) { $('#kbd').focus(); } }
-$('#term').addEventListener('mousedown', e => { if (e.target.closest('button')) return; focusTerm(); });
+$('#term').addEventListener('mousedown', e => { if (e.target.closest('button')) return; e.preventDefault(); focusTerm(); });
 $('#kbd').addEventListener('focus', () => { S.focused = true; render(); });
 $('#kbd').addEventListener('blur', () => { S.focused = false; render(); });
 $('#kbd').addEventListener('keydown', e => {
