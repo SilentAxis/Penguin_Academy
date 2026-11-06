@@ -1,0 +1,1170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="An interactive journalctl trainer: practise real commands against a simulated systemd journal, from your first look to disk housekeeping.">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>-xe Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Martian+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout mirrors Ctrl-b Academy's: a tab bar over working areas. Lessons = curriculum rail, lesson card, live terminal. */
+:root{
+  --bg:#e8ecf0; --surface:#f7f9fa; --raised:#ffffff; --ink:#121920; --muted:#55626e; --line:#d0d7de;
+  --accent:#16714a; --accent-soft:#d9eee2; --accent-ink:#ffffff; --amber:#865700; --amber-soft:#f7ead0;
+  --kbd:#ffffff; --kbd-edge:#aab5c0; --danger:#a33a3a; --focus:#2f6fd6;
+  --term-bg:#0e1013; --term-fg:#d4d8dd; --term-dim:#7c8592; --term-border:#3a4048;
+  --t-green:#52b35c; --t-yellow:#e3b93a; --t-blue:#5c8df0; --t-red:#e0605e; --t-ink:#0b0c0e;
+  --f-display:"Martian Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-term:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1317; --surface:#151c22; --raised:#1b242c; --ink:#e2e7ec; --muted:#93a0ac; --line:#29343f;
+  --accent:#4cc487; --accent-soft:#15301f; --accent-ink:#06210f; --amber:#e7b54b; --amber-soft:#2c2310;
+  --kbd:#222d37; --kbd-edge:#3d4b58; --danger:#ef8585; --focus:#7aa7ff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1317; --surface:#151c22; --raised:#1b242c; --ink:#e2e7ec; --muted:#93a0ac; --line:#29343f;
+  --accent:#4cc487; --accent-soft:#15301f; --accent-ink:#06210f; --amber:#e7b54b; --amber-soft:#2c2310;
+  --kbd:#222d37; --kbd-edge:#3d4b58; --danger:#ef8585; --focus:#7aa7ff; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--f-body);font-size:16px;line-height:1.55}
+a{color:var(--accent)}
+code{font-family:var(--f-term);font-size:.88em;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:.05em .35em;white-space:normal;overflow-wrap:anywhere;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+kbd{font-family:var(--f-term);font-size:.82em;display:inline-block;min-width:1.7em;text-align:center;padding:.1em .45em;border:1px solid var(--kbd-edge);border-bottom-width:2px;border-radius:5px;background:var(--kbd);color:var(--ink);line-height:1.4;white-space:nowrap}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.wrap{max-width:1440px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+.top{border-bottom:1px solid var(--line);background:var(--surface)}
+.top .wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding-block:12px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:600;font-size:1.05rem;letter-spacing:-.01em}
+.brand .cap{font-family:var(--f-term);font-size:.78rem;background:var(--t-green);color:var(--t-ink);padding:2px 7px;border-radius:4px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto}
+.tabs button{background:none;border:1px solid transparent;border-radius:6px;padding:6px 12px;cursor:pointer;color:var(--muted);font-weight:700;font-size:.92rem}
+.tabs button[aria-selected="true"]{color:var(--ink);background:var(--raised);border-color:var(--line)}
+.tabs button:hover{color:var(--ink)}
+
+main{padding-block:20px 48px}
+.view[hidden]{display:none!important}
+
+.learn{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:820px){.learn{grid-template-columns:330px minmax(0,1fr)}.learn .rail{grid-column:1/-1}}
+@media (min-width:1220px){.learn{grid-template-columns:240px 350px minmax(0,1fr)}.learn .rail{grid-column:auto}}
+.rail details{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.rail summary{cursor:pointer;padding:10px 14px;font-weight:700;display:flex;justify-content:space-between;gap:8px;list-style:none}
+.rail summary::-webkit-details-marker{display:none}
+.rail summary::after{content:"▾";color:var(--muted)}
+.rail details[open] summary::after{content:"▴"}
+.rail .count{font-family:var(--f-term);font-size:.8rem;color:var(--muted);font-weight:400}
+.mods{padding:0 8px 10px;display:grid;gap:10px}
+@media (min-width:820px) and (max-width:1219px){.mods{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}}
+.mod h3{font-family:var(--f-display);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:6px 6px 4px;font-weight:600}
+.mod ol{list-style:none;margin:0;padding:0}
+.mod button{display:flex;gap:8px;align-items:baseline;width:100%;text-align:left;background:none;border:0;border-radius:6px;padding:5px 6px;cursor:pointer;font-size:.92rem;line-height:1.35}
+.mod button:hover{background:var(--raised)}
+.mod button[aria-current="true"]{background:var(--accent-soft);font-weight:700}
+.mod .tick{font-family:var(--f-term);font-size:.75rem;width:1.1em;flex:none;color:var(--muted)}
+.mod .done .tick{color:var(--accent)}
+
+.lesson{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:18px 18px 16px;align-self:start;min-width:0;overflow-wrap:anywhere}
+@media (min-width:820px){.lesson{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}}
+.eyebrow{font-family:var(--f-display);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.lesson h1{font-family:var(--f-display);font-size:1.3rem;line-height:1.25;margin:6px 0 10px;letter-spacing:-.02em;text-wrap:balance;font-weight:600}
+.lesson .intro p{margin:0 0 10px}
+.steps{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px;counter-reset:s}
+.steps li{counter-increment:s;border:1px solid var(--line);border-radius:8px;padding:9px 10px 9px 38px;position:relative;background:var(--surface)}
+.steps li::before{content:counter(s);position:absolute;left:10px;top:9px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-term);font-size:.72rem;border:1px solid var(--line);color:var(--muted);background:var(--raised)}
+.steps li.current{border-color:var(--accent);background:var(--raised);box-shadow:0 0 0 1px var(--accent) inset}
+.steps li.current::before{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.steps li.done{color:var(--muted)}
+.steps li.done::before{content:"✓";background:var(--accent-soft);color:var(--accent);border-color:var(--accent-soft)}
+.steps li.todo{opacity:.62}
+.hint-btn{background:none;border:0;padding:0;margin-top:4px;color:var(--accent);cursor:pointer;font-size:.86rem;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+.hint{margin-top:6px;font-size:.9rem;color:var(--muted)}
+.complete{margin-top:14px;border-radius:8px;background:var(--accent-soft);padding:12px 14px}
+.complete strong{display:block;font-family:var(--f-display);font-size:.9rem;margin-bottom:4px}
+.lesson-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 12px;cursor:pointer;font-weight:700;font-size:.9rem}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.badge{font-family:var(--f-term);font-size:.72rem;border-radius:4px;padding:1px 6px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+
+.workbench{min-width:0;display:grid;gap:10px;align-content:start}
+.term-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;font-size:.86rem;color:var(--muted)}
+.indicators{display:flex;gap:6px;flex-wrap:wrap}
+.ind{font-family:var(--f-term);font-size:.75rem;border-radius:4px;padding:2px 7px;border:1px solid var(--line);background:var(--surface);color:var(--muted)}
+.ind.on{background:var(--amber-soft);border-color:var(--amber);color:var(--amber);font-weight:600}
+.term{position:relative;background:var(--term-bg);color:var(--term-fg);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;height:clamp(320px,58vh,520px);font:13px/18px var(--f-term);cursor:text;border:1px solid var(--term-border)}
+.term.focused{box-shadow:0 0 0 2px var(--focus)}
+#term-body{position:relative;flex:1;min-height:0;padding:4px 6px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.ln{white-space:pre-wrap;overflow-wrap:anywhere;min-height:18px}
+.cur{background:var(--term-fg);color:var(--term-bg)}
+.cur.hollow{background:transparent;outline:1px solid var(--term-dim);outline-offset:-1px}
+.sev-crit{color:var(--t-red);font-weight:600}
+.sev-err{color:var(--t-red)}
+.sev-warn{color:var(--t-yellow)}
+.sev-debug{color:var(--term-dim)}
+.hl{background:var(--t-yellow);color:var(--t-ink)}
+#pager-bar{height:18px;flex:none;display:flex;justify-content:space-between;gap:12px;padding:0 4px;white-space:pre;overflow:hidden;background:var(--term-border);color:var(--term-fg)}
+#kbd{position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;border:0;padding:0;resize:none;font-size:16px}
+.term-tip{font-size:.84rem;color:var(--muted)}
+.keybar{display:flex;flex-wrap:wrap;gap:6px}
+.keybar button{font-family:var(--f-term);font-size:.8rem;border:1px solid var(--kbd-edge);border-bottom-width:2px;background:var(--kbd);border-radius:6px;padding:5px 9px;cursor:pointer;min-width:2.3em}
+.keybar button.on{background:var(--amber-soft);border-color:var(--amber);color:var(--amber);font-weight:600}
+.explain{border-left:3px solid var(--accent);background:var(--surface);border-radius:0 8px 8px 0;padding:8px 12px;font-size:.92rem;min-height:2.6em}
+.explain .muted{color:var(--muted)}
+
+.panel{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:20px;min-width:0}
+.panel h2{font-family:var(--f-display);font-size:1.15rem;margin:0 0 6px;letter-spacing:-.02em;font-weight:600;text-wrap:balance}
+.panel h3{font-family:var(--f-display);font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px;font-weight:600}
+.lead{color:var(--muted);margin:0 0 14px;max-width:68ch}
+.two{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:900px){.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.seg button{border:0;background:var(--surface);padding:6px 12px;cursor:pointer;font-weight:700;font-size:.88rem}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.pad{border:2px dashed var(--line);border-radius:12px;padding:26px 18px;text-align:center;cursor:pointer;background:var(--surface)}
+.pad:focus-visible{outline:none;border-color:var(--focus)}
+.pad .q{font-family:var(--f-display);font-size:1.1rem;margin:6px 0 12px;text-wrap:balance}
+.pad .a{min-height:1.6em;font-weight:700}
+.pad .a.good{color:var(--accent)}
+.score{font-family:var(--f-term);font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.cmd-form{display:flex;gap:8px;flex-wrap:wrap}
+.cmd-form input{flex:1;min-width:0;font-family:var(--f-term);font-size:.95rem;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink)}
+.state{min-height:1.6em;font-weight:700}
+.state.good{color:var(--accent)}
+.state.bad{color:var(--danger)}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-display);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td code{white-space:normal}
+.ref-grid{display:grid;gap:4px 24px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:980px){.ref-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.opts{display:grid;gap:10px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.opt input[type=checkbox]{margin-top:5px}
+.opt small{display:block;color:var(--muted)}
+.opt select,.opt input[type=text]{font:inherit;padding:3px 6px;border-radius:6px;border:1px solid var(--line);background:var(--raised);color:var(--ink)}
+pre.conf{font-family:var(--f-term);font-size:.84rem;line-height:1.55;background:var(--term-bg);color:var(--term-fg);border-radius:10px;padding:14px;overflow-x:auto;margin:0;white-space:pre}
+pre.conf .c{color:var(--term-dim)}
+.links{display:grid;gap:8px;padding:0;list-style:none}
+.toast{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:8px;font-size:.92rem;max-width:min(92vw,520px);z-index:20}
+@media (prefers-reduced-motion:no-preference){.steps li.current{transition:box-shadow .2s}}
+</style>
+</head>
+<body>
+
+<header class="top"><div class="wrap">
+  <div class="brand"><span class="cap">-xe</span> -xe Academy</div>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" data-view="learn" aria-selected="true">Lessons</button>
+    <button role="tab" data-view="drill" aria-selected="false">Drill</button>
+    <button role="tab" data-view="reference" aria-selected="false">Reference</button>
+    <button role="tab" data-view="config" aria-selected="false">journald.conf builder</button>
+  </nav>
+</div></header>
+
+<main class="wrap">
+  <section class="view learn" id="view-learn">
+    <aside class="rail"><details id="rail" open><summary><span>Lessons</span><span class="count" id="progress-count"></span></summary><div class="mods" id="mods"></div></details></aside>
+    <article class="lesson" id="lesson" aria-live="polite"></article>
+    <div class="workbench">
+      <div class="term-head">
+        <span class="term-tip" id="term-tip">Click the terminal, then type a command and press Enter.</span>
+        <div class="indicators"><span class="ind" id="ind-mode">shell</span><span class="ind" id="ind-boot">boot 0</span></div>
+      </div>
+      <div class="term" id="term" role="application" aria-label="Simulated shell with journalctl. Focus it and type." tabindex="-1">
+        <div id="term-body"></div>
+        <div id="pager-bar" hidden></div>
+        <textarea id="kbd" aria-label="Terminal input" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+      </div>
+      <div class="keybar" id="keybar" aria-label="On-screen keys"></div>
+      <div class="explain" id="explain" aria-live="polite"><span class="muted">What each command actually did shows up here.</span></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-drill" hidden>
+    <div class="panel">
+      <h2>Drill</h2>
+      <p class="lead">Recall beats rereading. Flashcards test the facts you need fast; the command drill makes you type the whole thing.</p>
+      <div class="seg" role="group" aria-label="Drill type"><button id="drill-cards" aria-pressed="true">Flashcards</button><button id="drill-cmds" aria-pressed="false">Command drill</button></div>
+      <div id="drill-cards-panel">
+        <div class="pad" id="pad" tabindex="0" role="button" aria-describedby="pad-a">
+          <div class="eyebrow">Click to reveal, then grade yourself</div>
+          <div class="q" id="pad-q"></div>
+          <div class="a" id="pad-a" aria-live="polite">Click here to start.</div>
+          <div class="lesson-actions" id="pad-grade" hidden><button class="btn" id="pad-miss" type="button">Missed it</button><button class="btn primary" id="pad-got" type="button">Got it</button></div>
+        </div>
+        <p class="score" id="pad-score"></p>
+      </div>
+      <div id="drill-cmds-panel" hidden>
+        <p class="q" id="cmd-q" style="font-family:var(--f-display);font-size:1.05rem;margin:0 0 10px"></p>
+        <form class="cmd-form" id="cmd-form"><input id="cmd-input" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Your command" placeholder="journalctl ..."><button class="btn primary" type="submit">Check</button><button class="btn" type="button" id="cmd-skip">Show answer</button></form>
+        <p class="state" id="cmd-state" aria-live="polite"></p>
+        <p class="score" id="cmd-score"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-reference" hidden>
+    <div class="panel" id="reference"></div>
+  </section>
+
+  <section class="view" id="view-config" hidden>
+    <div class="two">
+      <div class="panel">
+        <h2>Build a journald.conf</h2>
+        <p class="lead">systemd-journald reads <code>/etc/systemd/journald.conf</code> when it starts. Pick what you want and copy the file to your machine.</p>
+        <form class="opts" id="conf-form"></form>
+      </div>
+      <div class="panel">
+        <h2>/etc/systemd/journald.conf</h2>
+        <p class="lead">Save this, then <code>sudo systemctl restart systemd-journald</code> to pick it up.</p>
+        <pre class="conf" id="conf-out"></pre>
+        <div class="lesson-actions"><button class="btn primary" id="conf-copy" type="button">Copy</button></div>
+      </div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const HOST = 'observatory', LH = 18, STORE = 'xe-academy-v1';
+let saved = {done: [], lesson: 0};
+try { saved = {...saved, ...JSON.parse(localStorage.getItem(STORE) || '{}')}; } catch (e) {}
+const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(saved)); } catch (e) {} };
+const pad2 = n => String(n).padStart(2, '0');
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+/* ---------------- a tiny seeded RNG, so the "random" flavour text never changes between loads ---------------- */
+function mkrng(seed) { let s = seed >>> 0; return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
+const pick = (rng, arr) => arr[Math.floor(rng() * arr.length) % arr.length];
+
+/* ---------------- priorities ---------------- */
+const PRIO_NAMES = ['emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug'];
+const PRIO_ALIAS = {error: 3, err: 3, warn: 4, warning: 4};
+function prioNum(v) {
+  if (v == null) return null;
+  const s = String(v).toLowerCase().trim();
+  if (/^[0-7]$/.test(s)) return +s;
+  if (PRIO_ALIAS[s] != null) return PRIO_ALIAS[s];
+  const i = PRIO_NAMES.indexOf(s);
+  return i < 0 ? null : i;
+}
+function sevClass(p) { return p <= 2 ? 'sev-crit' : p === 3 ? 'sev-err' : p === 4 ? 'sev-warn' : p === 7 ? 'sev-debug' : ''; }
+
+/* ---------------- the story: four boots of a little web app ---------------- */
+const D = (y, m, d, h = 0, mi = 0, s = 0) => new Date(y, m - 1, d, h, mi, s);
+const NOW = D(2026, 11, 5, 18, 0, 0); // the trainer's fixed "current moment" -- never the visitor's real clock
+const BOOTS = [
+  {off: -3, id: 'a1b2c3d4e5f6478a9b1c2d3e4f5a6b7c', start: D(2026, 11, 2, 7, 58, 2),  end: D(2026, 11, 2, 22, 40, 11), clean: true},
+  {off: -2, id: 'b2c3d4e5f6a7489b8c1d2e3f4a5b6c7d', start: D(2026, 11, 3, 8, 0, 10),  end: D(2026, 11, 3, 23, 47, 52), clean: false},
+  {off: -1, id: 'c3d4e5f6a7b8491c9d2e3f4a5b6c7d8e', start: D(2026, 11, 3, 23, 49, 5), end: D(2026, 11, 4, 22, 0, 0),  clean: true},
+  {off: 0,  id: 'd4e5f6a7b8c9402d1e3f4a5b6c7d8e9f', start: D(2026, 11, 4, 22, 2, 15), end: null, clean: null},
+];
+const bootByOff = o => BOOTS.find(b => b.off === o);
+
+let seq = 0;
+function entry(boot, t, {unit = null, id = 'journal', pid = null, prio = 6, msg, kernel = false, xid = null}) {
+  return {n: seq++, boot: boot.off, t, unit, id, pid, prio, msg, kernel, xid};
+}
+const J = []; // the whole simulated journal, built once below
+
+function addRange(boot, {unit, id, pid, from, to, stepMin, prio, msgs}, rng) {
+  const end = to || boot.end || NOW;
+  for (let t = from.getTime(); t <= end.getTime(); t += stepMin * 60000 + Math.floor(rng() * 20000)) {
+    J.push(entry(boot, new Date(t), {unit, id, pid: pid + Math.floor(rng() * 3), prio, msg: pick(rng, msgs)}));
+  }
+}
+
+function buildJournal() {
+  for (const boot of BOOTS) {
+    const rng = mkrng(1000 + boot.off * 7);
+    const svcPid = {lighthouse: 4800 + (boot.off + 3) * 90, nginx: 980, postgresql: 1100, cron: 1300, nm: 700, ssh: 900};
+    // boot-up block
+    const startUnits = [
+      ['systemd', null, 1, 'Startup finished in 1.812s (kernel) + 2.004s (userspace) = 3.816s.'],
+      ['systemd', 'NetworkManager.service', svcPid.nm, 'Starting Network Manager...'],
+      ['NetworkManager', 'NetworkManager.service', svcPid.nm, '<info>  NetworkManager (version 1.44.0) is starting...'],
+      ['systemd', 'NetworkManager.service', svcPid.nm, 'Started Network Manager.'],
+      ['NetworkManager', 'NetworkManager.service', svcPid.nm, "<info>  device (wlan0): Activation: successful, device activated."],
+      ['systemd', 'postgresql.service', svcPid.postgresql, 'Starting PostgreSQL database server...'],
+      ['postgres', 'postgresql.service', svcPid.postgresql, 'database system is ready to accept connections'],
+      ['systemd', 'postgresql.service', svcPid.postgresql, 'Started PostgreSQL database server.'],
+      ['systemd', 'nginx.service', svcPid.nginx, 'Starting A high performance web server and a reverse proxy server...'],
+      ['nginx', 'nginx.service', svcPid.nginx, 'nginx/1.24.0'],
+      ['systemd', 'nginx.service', svcPid.nginx, 'Started A high performance web server and a reverse proxy server.'],
+      ['systemd', 'lighthouse.service', svcPid.lighthouse, 'Starting Lighthouse beacon API...'],
+      ['lighthouse', 'lighthouse.service', svcPid.lighthouse, 'listening on :8080 (pid ' + svcPid.lighthouse + ')'],
+      ['systemd', 'lighthouse.service', svcPid.lighthouse, 'Started Lighthouse beacon API.'],
+    ];
+    let t0 = boot.start.getTime();
+    for (const [id, unit, pid, msg] of startUnits) { J.push(entry(boot, new Date(t0), {unit, id, pid, prio: 6, msg})); t0 += 2000 + Math.floor(rng() * 4000); }
+
+    // routine filler for the whole boot
+    addRange(boot, {unit: 'lighthouse.service', id: 'lighthouse', pid: svcPid.lighthouse, from: new Date(t0 + 60000), stepMin: 22, prio: 6,
+      msgs: ['GET /status 200 4ms', 'GET /beacons 200 11ms', 'GET /beacons/42 200 6ms', 'POST /beacons 201 19ms', 'GET /status 200 3ms']}, rng);
+    addRange(boot, {unit: 'nginx.service', id: 'nginx', pid: svcPid.nginx, from: new Date(t0 + 90000), stepMin: 35, prio: 6,
+      msgs: ['client closed keepalive connection', '"GET /favicon.ico HTTP/1.1" 404', 'reloading config']}, rng);
+    addRange(boot, {unit: 'postgresql.service', id: 'postgres', pid: svcPid.postgresql, from: new Date(t0 + 120000), stepMin: 70, prio: 6,
+      msgs: ['checkpoint starting: time', 'checkpoint complete: wrote 12 buffers (0.1%)', 'automatic analyze of table "beacons" system usage: CPU 0.02s/0.01u sec elapsed 0.14 sec']}, rng);
+    addRange(boot, {unit: 'cron.service', id: 'CRON', pid: svcPid.cron, from: D(boot.start.getFullYear(), boot.start.getMonth() + 1, boot.start.getDate(), 3, 15, 0) < boot.start ? new Date(t0 + 50000) : D(boot.start.getFullYear(), boot.start.getMonth() + 1, boot.start.getDate(), 3, 15, 0),
+      to: boot.end, stepMin: 1440, prio: 6, msgs: ['(root) CMD (/usr/local/bin/backup.sh)']}, rng);
+
+    // a legitimate admin login, once per boot
+    J.push(entry(boot, new Date(t0 + 200000), {unit: 'ssh.service', id: 'sshd', pid: svcPid.ssh, prio: 6, msg: 'Accepted publickey for ops from 10.0.0.7 port 40410 ssh2'}));
+    J.push(entry(boot, new Date(t0 + 201000), {unit: 'ssh.service', id: 'sshd', pid: svcPid.ssh, prio: 6, msg: 'pam_unix(sshd:session): session opened for user ops'}));
+
+    if (boot.off === -2) {
+      // the night it ran out of memory
+      const c = boot.end.getTime() - 112000;
+      const steps = [
+        [0, 'lighthouse', 'lighthouse.service', svcPid.lighthouse, 4, 'memory usage climbing: 812MB (heap)'],
+        [38000, 'lighthouse', 'lighthouse.service', svcPid.lighthouse, 4, 'memory usage climbing: 1.3GB (heap)'],
+        [68000, 'lighthouse', 'lighthouse.service', svcPid.lighthouse, 2, 'allocation failed: Cannot allocate memory', 'lighthouse-crit'],
+        [69000, 'kernel', null, null, 4, 'lighthouse invoked oom-killer: gfp_mask=0x1100cca, order=0, oom_score_adj=0', true],
+        [69500, 'kernel', null, null, 6, 'Out of memory: Killed process 4821 (lighthouse) total-vm:2103040kB, anon-rss:1987244kB', true],
+        [70500, 'systemd', 'lighthouse.service', 1, 3, 'lighthouse.service: Main process exited, code=killed, status=9/KILL'],
+        [71000, 'systemd', 'lighthouse.service', 1, 3, "lighthouse.service: Failed with result 'signal'.", false, 'lighthouse-failed'],
+        [71800, 'systemd', 'lighthouse.service', 1, 6, 'lighthouse.service: Scheduled restart job, restart counter is at 1.'],
+        [72300, 'systemd', 'lighthouse.service', svcPid.lighthouse + 281, 6, 'Started Lighthouse beacon API.'],
+        [99000, 'kernel', null, null, 0, 'Kernel panic - not syncing: Out of memory: panic_on_oom is enabled', true],
+        [112000, 'kernel', null, null, 6, 'reboot: machine restart requested', true],
+      ];
+      for (const st of steps) {
+        const [dt, id, unit, pid, prio, msg, kernel, xid] = st;
+        J.push(entry(boot, new Date(c + dt), {unit, id, pid, prio, msg, kernel: !!kernel, xid: xid || null}));
+      }
+    }
+    if (boot.off === -1) {
+      // a brute-force attempt in the small hours
+      const a = D(2026, 11, 4, 3, 12, 0).getTime();
+      const users = ['admin', 'root', 'test', 'root', 'oracle', 'root', 'guest'];
+      let pt = a;
+      users.forEach((u, i) => { J.push(entry(boot, new Date(pt), {unit: 'ssh.service', id: 'sshd', pid: svcPid.ssh + i, prio: 5, msg: `Failed password for ${i === 1 || i === 3 || i === 5 ? '' : 'invalid user '}${u} from 203.0.113.44 port ${51300 + i * 20} ssh2`})); pt += 23000 + Math.floor(rng() * 4000); });
+      J.push(entry(boot, new Date(pt), {unit: 'ssh.service', id: 'sshd', pid: svcPid.ssh, prio: 4, msg: 'Disconnecting authenticating user 203.0.113.44 port 51500: Too many authentication failures [preauth]'}));
+    }
+
+    // shutdown block for every boot that isn't still running
+    if (boot.end && boot.clean) {
+      const e = boot.end.getTime();
+      J.push(entry(boot, new Date(e - 4000), {unit: 'lighthouse.service', id: 'systemd', pid: 1, prio: 6, msg: 'lighthouse.service: Succeeded.'}));
+      J.push(entry(boot, new Date(e - 3000), {unit: 'nginx.service', id: 'systemd', pid: 1, prio: 6, msg: 'nginx.service: Succeeded.'}));
+      J.push(entry(boot, new Date(e - 1000), {unit: null, id: 'systemd', pid: 1, prio: 6, msg: 'Reached target Power-Off.'}));
+      J.push(entry(boot, new Date(e), {unit: null, id: 'systemd-shutdown', pid: 1, prio: 6, msg: 'Shutting down.'}));
+    }
+  }
+  J.sort((a, b) => a.boot - b.boot || a.t - b.t || a.n - b.n);
+}
+buildJournal();
+
+const CATALOG = {
+  'lighthouse-failed': ['-- Subject: Unit failed', '-- Defined-By: systemd', '-- Support: https://www.freedesktop.org/wiki/Support', '--', "-- The unit lighthouse.service has entered the 'failed' state with result 'signal'."],
+  'lighthouse-crit': ['-- Subject: Resource exhaustion', '-- Defined-By: journalctl trainer', '--', '-- lighthouse.service could not grow its heap any further.'],
+};
+
+/* ---------------- a fake "now", advanced only while following ---------------- */
+let simNow = new Date(NOW);
+const tickRng = mkrng(42);
+const FOLLOW_SOURCES = [
+  ['lighthouse.service', 'lighthouse', () => svcPidOf('lighthouse'), 6, ['GET /status 200 4ms', 'GET /beacons 200 9ms', 'POST /beacons 201 21ms']],
+  ['nginx.service', 'nginx', () => svcPidOf('nginx'), 6, ['client closed keepalive connection', '"GET /beacons HTTP/1.1" 200 812']],
+  ['postgresql.service', 'postgres', () => svcPidOf('postgresql'), 6, ['checkpoint starting: time']],
+];
+function svcPidOf(name) { return {lighthouse: 5300, nginx: 980, postgresql: 1100}[name]; }
+
+/* ---------------- state ---------------- */
+const S = {
+  lines: [], input: '', hist: [], hi: -1, cwd: '~', boot: 0,
+  pager: null,          // {buf, top, query, searching, qbuf, matches, mi, rows}
+  follow: null,         // {cmd, timer}
+  focused: false, areaRows: 16,
+};
+function out(line, cls = '') { S.lines.push({text: line, cls}); if (S.lines.length > 4000) S.lines.splice(0, S.lines.length - 4000); }
+function promptLine() { return `you@${HOST}:${S.cwd}$ `; }
+
+/* ---------------- time formatting ---------------- */
+function shortTs(d) { return `${MON[d.getMonth()]} ${String(d.getDate()).padStart(2)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; }
+function isoTs(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}+0000`; }
+function preciseTs(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.000000+0000`; }
+function verboseTs(d) { return `${DOW[d.getDay()]} ${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.000000 +0000`; }
+function longDate(d) { return `${DOW[d.getDay()]} ${MON[d.getMonth()]} ${String(d.getDate()).padStart(2)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())} ${d.getFullYear()}`; }
+
+/* ---------------- parsing "journalctl ..." ---------------- */
+const BOOL_SHORT = {f: 'follow', k: 'kernel', r: 'reverse', x: 'explain', e: 'tailEnd', q: 'quiet', a: 'all', i: 'icase'};
+const VAL_SHORT = {u: 'unit', p: 'priority', b: 'boot', n: 'lines', S: 'since', U: 'until', o: 'output', g: 'grep'};
+const BOOL_LONG = {follow: 'follow', dmesg: 'kernel', reverse: 'reverse', catalog: 'explain', 'pager-end': 'tailEnd', quiet: 'quiet', all: 'all',
+  'case-sensitive': 'csens', 'no-pager': 'noPager', utc: 'utc', 'list-boots': 'listBoots', 'disk-usage': 'diskUsage', 'no-tail': 'noTail'};
+const VAL_LONG = {unit: 'unit', priority: 'priority', boot: 'boot', lines: 'lines', since: 'since', until: 'until', output: 'output', grep: 'grep',
+  'vacuum-size': 'vacSize', 'vacuum-time': 'vacTime', 'vacuum-files': 'vacFiles'};
+
+function emptyCmd() {
+  return {raw: '', units: [], kernel: false, prioMin: null, prioMax: null, boot: null, listBoots: false, follow: false, lines: null,
+    reverse: false, since: null, until: null, output: 'short', grep: null, icase: false, explain: false, tailEnd: false, noPager: false,
+    quiet: false, all: false, utc: false, diskUsage: false, vacSize: null, vacTime: null, vacFiles: null, noTail: false, fields: [], errors: []};
+}
+
+function parseSince(s) {
+  if (s == null) return null;
+  const v = String(s).trim().toLowerCase();
+  const startOfDay = d => D(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  if (v === 'now') return {d: new Date(simNow), kind: 'now'};
+  if (v === 'today') return {d: startOfDay(simNow), kind: 'today'};
+  if (v === 'yesterday') { const y = new Date(simNow); y.setDate(y.getDate() - 1); return {d: startOfDay(y), kind: 'yesterday'}; }
+  if (v === 'tomorrow') { const t = new Date(simNow); t.setDate(t.getDate() + 1); return {d: startOfDay(t), kind: 'tomorrow'}; }
+  let m = /^-?\s*(\d+)\s*(s|sec|second|m|min|minute|h|hour|d|day)s?\s*(ago)?$/.exec(v);
+  if (m) { const n = +m[1], unit = m[2]; const ms = {s: 1e3, sec: 1e3, second: 1e3, m: 6e4, min: 6e4, minute: 6e4, h: 36e5, hour: 36e5, d: 864e5, day: 864e5}[unit]; return {d: new Date(simNow.getTime() - n * ms), kind: 'relative'}; }
+  m = /^(\d{4})-(\d{2})-(\d{2})(?:[ t](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(v);
+  if (m) return {d: D(+m[1], +m[2], +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)), kind: m[4] ? 'datetime' : 'date'};
+  return {d: null, kind: 'bad'};
+}
+
+function parsePriority(cmd, v) {
+  const rangeM = /^(\w+)\.\.(\w+)$/.exec(v);
+  if (rangeM) { const a = prioNum(rangeM[1]), b = prioNum(rangeM[2]); if (a == null || b == null) { cmd.errors.push(`Failed to parse priority "${v}".`); return; } cmd.prioMin = Math.min(a, b); cmd.prioMax = Math.max(a, b); return; }
+  const n = prioNum(v);
+  if (n == null) { cmd.errors.push(`Failed to parse priority "${v}".`); return; }
+  cmd.prioMin = 0; cmd.prioMax = n;
+}
+
+function normUnit(u) { return /\./.test(u) ? u : u + '.service'; }
+
+function parseArgs(argv) {
+  const cmd = emptyCmd(); cmd.raw = 'journalctl' + (argv.length ? ' ' + argv.join(' ') : '');
+  let orGroups = [[]], g = orGroups[0];
+  for (let i = 0; i < argv.length; i++) {
+    let a = argv[i];
+    if (a === '+') { g = []; orGroups.push(g); continue; }
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(a) && !a.startsWith('-')) { const eq = a.indexOf('='); g.push({field: a.slice(0, eq), value: a.slice(eq + 1)}); continue; }
+    if (a.startsWith('--')) {
+      let [name, val] = a.slice(2).split(/=(.*)/s);
+      if (BOOL_LONG[name]) { cmd[BOOL_LONG[name]] = true; continue; }
+      if (VAL_LONG[name]) { if (val == null) val = argv[++i]; cmd[VAL_LONG[name] === 'unit' ? '_u' : '_x'] = 1;
+        if (name === 'unit') cmd.units.push(normUnit(val));
+        else if (name === 'priority') parsePriority(cmd, val);
+        else if (name === 'boot') cmd.boot = val;
+        else if (name === 'lines') cmd.lines = +val;
+        else if (name === 'since') cmd.since = parseSince(val);
+        else if (name === 'until') cmd.until = parseSince(val);
+        else if (name === 'output') cmd.output = val;
+        else if (name === 'grep') cmd.grep = val;
+        else if (name === 'vacuum-size') cmd.vacSize = val;
+        else if (name === 'vacuum-time') cmd.vacTime = val;
+        else if (name === 'vacuum-files') cmd.vacFiles = val;
+        continue;
+      }
+      cmd.errors.push(`Unknown option --${name}`); continue;
+    }
+    if (a.startsWith('-') && a.length > 1) {
+      let rest = a.slice(1);
+      while (rest.length) {
+        const c = rest[0];
+        if (BOOL_SHORT[c]) { cmd[BOOL_SHORT[c]] = true; rest = rest.slice(1); continue; }
+        if (VAL_SHORT[c]) {
+          let val = rest.slice(1);
+          if (!val) { if (c === 'b' && (i + 1 >= argv.length || !/^-?[\w.-]+$/.test(argv[i + 1] || '') || /^--/.test(argv[i + 1] || ''))) { val = ''; } else val = argv[++i]; }
+          if (c === 'u') cmd.units.push(normUnit(val));
+          else if (c === 'p') parsePriority(cmd, val);
+          else if (c === 'b') cmd.boot = val === '' ? '0' : val;
+          else if (c === 'n') cmd.lines = +val;
+          else if (c === 'S') cmd.since = parseSince(val);
+          else if (c === 'U') cmd.until = parseSince(val);
+          else if (c === 'o') cmd.output = val;
+          else if (c === 'g') cmd.grep = val;
+          rest = '';
+          continue;
+        }
+        cmd.errors.push(`Unknown option -${c}`); rest = rest.slice(1);
+      }
+      continue;
+    }
+    cmd.errors.push(`journalctl: unrecognized argument '${a}'`);
+  }
+  cmd.fields = orGroups.filter(x => x.length);
+  if (cmd.boot != null) {
+    const b = String(cmd.boot).trim();
+    if (b === '' || b === '0') cmd.boot = 0;
+    else if (/^-\d+$/.test(b)) cmd.boot = +b;
+    else if (b === 'all') cmd.boot = 'all';
+    else { const m = BOOTS.find(x => x.id.startsWith(b)); cmd.boot = m ? m.off : null; if (!m) cmd.errors.push(`Failed to look up boot ID "${b}": No such file or directory`); }
+  }
+  return cmd;
+}
+
+/* ---------------- running the (already parsed) filter ---------------- */
+function fieldMatch(e, field, value) {
+  const get = {
+    _PID: e.pid == null ? null : String(e.pid), _COMM: e.id, _SYSTEMD_UNIT: e.unit, SYSLOG_IDENTIFIER: e.id,
+    PRIORITY: String(e.prio), _TRANSPORT: e.kernel ? 'kernel' : 'syslog', _HOSTNAME: HOST,
+  }[field.toUpperCase()] ?? null;
+  return get != null && get.toLowerCase() === String(value).toLowerCase();
+}
+
+function matches(e, cmd) {
+  if (cmd.kernel && !e.kernel) return false;
+  if (cmd.units.length && !(e.unit && cmd.units.some(u => u.toLowerCase() === e.unit.toLowerCase()))) return false;
+  if (cmd.prioMax != null && !(e.prio >= cmd.prioMin && e.prio <= cmd.prioMax)) return false;
+  if (cmd.since && cmd.since.d && e.t < cmd.since.d) return false;
+  if (cmd.until && cmd.until.d && e.t > cmd.until.d) return false;
+  if (cmd.grep) { try { const re = new RegExp(cmd.grep, cmd.icase || !cmd.csens ? 'i' : ''); if (!re.test(e.msg)) return false; } catch (err) { return false; } }
+  if (cmd.fields.length) {
+    const ok = cmd.fields.some(group => group.every(({field, value}) => fieldMatch(e, field, value)));
+    if (!ok) return false;
+  }
+  return true;
+}
+
+function bootsFor(cmd) {
+  if (cmd.boot === 'all' || cmd.boot == null) return BOOTS.map(b => b.off);
+  return [cmd.boot];
+}
+
+function filterJournal(cmd) {
+  const bootSet = new Set(bootsFor(cmd));
+  let rows = J.filter(e => bootSet.has(e.boot) && matches(e, cmd));
+  rows.sort((a, b) => a.boot - b.boot || a.t - b.t || a.n - b.n);
+  return rows;
+}
+
+/* ---------------- formatting entries into display lines ---------------- */
+function fmtEntry(e, cmd) {
+  const sev = sevClass(e.prio);
+  const out = [];
+  if (cmd.output === 'cat') { out.push({text: e.msg, cls: sev}); }
+  else if (cmd.output === 'json' || cmd.output === 'json-pretty') {
+    const obj = {__REALTIME_TIMESTAMP: String(e.t.getTime() * 1000), _HOSTNAME: HOST, SYSLOG_IDENTIFIER: e.id, _PID: e.pid == null ? undefined : String(e.pid),
+      _SYSTEMD_UNIT: e.unit || undefined, PRIORITY: String(e.prio), _TRANSPORT: e.kernel ? 'kernel' : 'syslog', MESSAGE: e.msg, _BOOT_ID: bootByOff(e.boot).id};
+    const text = cmd.output === 'json-pretty' ? JSON.stringify(obj, null, 2) : JSON.stringify(obj);
+    text.split('\n').forEach(l => out.push({text: l, cls: sev}));
+  } else {
+    const ts = cmd.output === 'short-iso' ? isoTs(e.t) : cmd.output === 'short-precise' ? preciseTs(e.t) : cmd.output === 'verbose' ? verboseTs(e.t) : shortTs(e.t);
+    const who = e.pid != null ? `${e.id}[${e.pid}]` : e.id;
+    out.push({text: `${ts} ${HOST} ${who}: ${e.msg}`, cls: sev});
+  }
+  if (cmd.explain && e.xid && CATALOG[e.xid]) CATALOG[e.xid].forEach(l => out.push({text: l, cls: 'muted'}));
+  return out;
+}
+
+/* ---------------- special subcommands that don't print journal entries ---------------- */
+function parseSize(s) { const m = /^(\d+(?:\.\d+)?)\s*([kKmMgGtT])?$/.exec(String(s).trim()); if (!m) return null; const mult = {k: 1e3, m: 1e6, g: 1e9, t: 1e12}[(m[2] || '').toLowerCase()] || 1; return +m[1] * mult; }
+function humanSize(n) { const units = ['B', 'K', 'M', 'G', 'T']; let i = 0; while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; } return `${n.toFixed(1)}${units[i]}`; }
+let diskUsed = 486_200_000;
+
+/* ---------------- the pager (behaves like `less`) ---------------- */
+function openPager(buf) {
+  const rows = visibleRows();
+  if (buf.length <= rows) { buf.forEach(l => out(l.text, l.cls)); return; }
+  S.pager = {buf, top: Math.max(0, buf.length - rows), rows, searching: false, qbuf: '', query: '', matches: [], mi: -1};
+}
+function visibleRows() { return Math.max(4, S.areaRows); }
+function pagerFind(query, fromTop) {
+  const re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, c => '\\' + c), 'i');
+  const hits = []; S.pager.buf.forEach((l, i) => { if (re.test(l.text)) hits.push(i); });
+  S.pager.matches = hits; S.pager.query = query;
+  const next = hits.find(i => i > fromTop);
+  S.pager.mi = next != null ? hits.indexOf(next) : (hits.length ? 0 : -1);
+  if (S.pager.mi >= 0) S.pager.top = Math.min(Math.max(0, hits[S.pager.mi] - 2), Math.max(0, S.pager.buf.length - S.pager.rows));
+}
+function pagerKey(k) {
+  const pg = S.pager; if (!pg) return;
+  if (pg.searching) {
+    if (k === 'Enter') { pg.searching = false; if (pg.qbuf) pagerFind(pg.qbuf, pg.top); emit('pager', {key: 'search', query: pg.qbuf}); }
+    else if (k === 'Backspace') pg.qbuf = pg.qbuf.slice(0, -1);
+    else if (k === 'Escape') { pg.searching = false; pg.qbuf = ''; }
+    else if (k.length === 1) pg.qbuf += k;
+    return;
+  }
+  const max = Math.max(0, pg.buf.length - pg.rows);
+  if (k === 'Space' || k === 'PageDown' || k === 'f' || k === 'C-f') { pg.top = Math.min(max, pg.top + pg.rows - 1); emit('pager', {key: 'pgdn'}); }
+  else if (k === 'b' || k === 'PageUp' || k === 'C-b') { pg.top = Math.max(0, pg.top - (pg.rows - 1)); emit('pager', {key: 'pgup'}); }
+  else if (k === 'Down' || k === 'j' || k === 'Enter') pg.top = Math.min(max, pg.top + 1);
+  else if (k === 'Up' || k === 'k') pg.top = Math.max(0, pg.top - 1);
+  else if (k === 'g') { pg.top = 0; emit('pager', {key: 'top'}); }
+  else if (k === 'G') { const atEnd = pg.top === max; pg.top = max; emit('pager', {key: 'end', already: atEnd}); }
+  else if (k === '/') { pg.searching = true; pg.qbuf = ''; }
+  else if (k === 'n' && pg.matches.length) { pg.mi = (pg.mi + 1) % pg.matches.length; pg.top = Math.min(Math.max(0, pg.matches[pg.mi] - 2), max); emit('pager', {key: 'next'}); }
+  else if (k === 'N' && pg.matches.length) { pg.mi = (pg.mi - 1 + pg.matches.length) % pg.matches.length; pg.top = Math.min(Math.max(0, pg.matches[pg.mi] - 2), max); emit('pager', {key: 'prev'}); }
+  else if (k === 'q' || k === 'C-c') { S.pager = null; emit('pager', {key: 'quit'}); }
+}
+
+/* ---------------- following (`-f`) ---------------- */
+function startFollow(cmd) {
+  stopFollow();
+  const timer = setInterval(() => {
+    simNow = new Date(simNow.getTime() + 20000 + Math.floor(tickRng() * 40000));
+    const [unit, id, pidFn, prio, msgs] = pick(tickRng, FOLLOW_SOURCES);
+    const e = entry(bootByOff(0), new Date(simNow), {unit, id, pid: pidFn(), prio, msg: pick(tickRng, msgs)});
+    J.push(e);
+    if (matches(e, cmd)) { fmtEntry(e, cmd).forEach(l => out(l.text, l.cls)); emit('follow-line', {}); }
+    scheduleRender();
+  }, 1500);
+  S.follow = {cmd, timer};
+  emit('cmd', {cmd, kind: 'follow-start'});
+}
+function stopFollow() { if (S.follow) { clearInterval(S.follow.timer); S.follow = null; out('^C', 'muted'); emit('follow-stop', {}); } }
+
+/* ---------------- the shell ---------------- */
+function tokenize(s) {
+  const o = []; let cur = '', q = null, has = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q) { if (c === q) q = null; else cur += c; continue; }
+    if (c === '"' || c === "'") { q = c; has = true; continue; }
+    if (/\s/.test(c)) { if (has) { o.push(cur); cur = ''; has = false; } continue; }
+    cur += c; has = true;
+  }
+  if (has) o.push(cur);
+  return o;
+}
+function runLine(line) {
+  out(promptLine() + line);
+  const t = line.trim(); if (!t) return;
+  S.hist.push(t);
+  let argv = tokenize(t);
+  if (argv[0] === 'sudo') argv = argv.slice(1);
+  const cmd0 = argv[0], rest = argv.slice(1);
+  switch (cmd0) {
+    case 'journalctl': return runJournalctl(rest);
+    case 'clear': S.lines = []; return;
+    case 'help': out('This practice shell understands journalctl (see the Reference tab), plus clear, date, whoami, hostname, and history.'); return;
+    case 'date': out(longDate(simNow)); return;
+    case 'whoami': out('you'); return;
+    case 'hostname': out(HOST); return;
+    case 'history': S.hist.forEach((h, i) => out(`${String(i + 1).padStart(5)}  ${h}`)); return;
+    case 'man': out(cmd0 === 'man' && rest[0] === 'journalctl' ? 'See the Reference tab above for every flag this trainer understands.' : `No manual entry for ${rest[0] || ''}`); return;
+    case '': return;
+    default: out(`bash: ${cmd0}: command not found`); return;
+  }
+}
+function runJournalctl(argv) {
+  const cmd = parseArgs(argv);
+  if (cmd.errors.length) { cmd.errors.forEach(e => out(e, 'sev-err')); emit('cmd', {cmd, kind: 'error'}); return; }
+  if (cmd.listBoots) {
+    BOOTS.forEach(b => out(`${String(b.off).padStart(2)} ${b.id} ${shortTs(b.start)}—${b.end ? shortTs(b.end) : 'now'}`));
+    emit('cmd', {cmd, kind: 'list-boots'}); return;
+  }
+  if (cmd.diskUsage) { out(`Archived and active journals take up ${humanSize(diskUsed)} in the file system.`); emit('cmd', {cmd, kind: 'disk-usage'}); return; }
+  if (cmd.vacSize || cmd.vacTime || cmd.vacFiles) {
+    const freed = Math.min(diskUsed * 0.7, 180_000_000 + Math.floor(tickRng() * 40_000_000));
+    diskUsed -= freed;
+    out(`Vacuuming done, freed ${humanSize(freed)} of archived journals from /var/log/journal/.`);
+    emit('cmd', {cmd, kind: 'vacuum'}); return;
+  }
+  if (cmd.follow) { startFollow(cmd); return; }
+  let rows = filterJournal(cmd);
+  const total = rows.length;
+  const lines = cmd.lines != null ? cmd.lines : null;
+  if (lines != null) rows = rows.slice(Math.max(0, rows.length - lines));
+  if (cmd.reverse) rows = [...rows].reverse();
+  const buf = [];
+  if (!rows.length) buf.push({text: '-- No entries --', cls: 'muted'});
+  rows.forEach(e => fmtEntry(e, cmd).forEach(l => buf.push(l)));
+  openPager(buf);
+  emit('cmd', {cmd, kind: 'view', total, shown: rows.length});
+}
+
+/* ---------------- key handling ---------------- */
+function handleKey(k) {
+  S.focused = true;
+  if (S.follow) { if (k === 'C-c') stopFollow(); scheduleRender(); return; }
+  if (S.pager) { pagerKey(k); scheduleRender(); return; }
+  if (k === 'Enter') { const line = S.input; S.input = ''; S.hi = -1; runLine(line); scheduleRender(); return; }
+  if (k === 'Backspace') { S.input = S.input.slice(0, -1); scheduleRender(); return; }
+  if (k === 'C-c') { out(promptLine() + S.input + '^C'); S.input = ''; scheduleRender(); return; }
+  if (k === 'C-u') { S.input = ''; scheduleRender(); return; }
+  if (k === 'C-l') { S.lines = []; scheduleRender(); return; }
+  if (k === 'Up') { if (S.hist.length) { S.hi = S.hi < 0 ? S.hist.length - 1 : Math.max(0, S.hi - 1); S.input = S.hist[S.hi]; } scheduleRender(); return; }
+  if (k === 'Down') { if (S.hi >= 0) { S.hi++; if (S.hi >= S.hist.length) { S.hi = -1; S.input = ''; } else S.input = S.hist[S.hi]; } scheduleRender(); return; }
+  if (k === 'Space') { S.input += ' '; scheduleRender(); return; }
+  if (k.length === 1) { S.input += k; scheduleRender(); }
+}
+function normKey(e) {
+  if (e.ctrlKey && !e.altKey && !e.metaKey && /^[a-z]$/i.test(e.key)) return 'C-' + e.key.toLowerCase();
+  if (e.key === 'Enter') return 'Enter';
+  if (e.key === 'Backspace') return 'Backspace';
+  if (e.key === ' ') return 'Space';
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Escape'].includes(e.key)) return e.key.replace('Arrow', '');
+  if (e.key.length === 1) return e.key;
+  return null;
+}
+
+/* ---------------- events / lessons ---------------- */
+function emit(type, data = {}) { checkLesson({type, ...data}); }
+
+const LESSONS = [
+{ id: 'open', mod: 'First look', title: 'Open the journal', intro: [
+    "journalctl reads the systemd journal: one running log of everything every service on the machine said. No args, no filters — just the whole story.",
+    'Output longer than the screen opens in a pager, the same way `git log` or `man` does. You move around it with a handful of keys, and they work the same way almost everywhere in Linux.'],
+  steps: [
+    {text: 'Run journalctl with no arguments at all.', hint: 'Just type: journalctl', test: ev => ev.type === 'cmd' && ev.type && ev.cmd && ev.cmd.raw === 'journalctl'},
+    {text: 'The pager opened already scrolled near the bottom. Page back up one screen with Space\'s opposite: press b (or Page Up).', hint: 'Press the letter b.', test: ev => ev.type === 'pager' && ev.key === 'pgup'},
+    {text: 'Page forward again with Space (or Page Down).', hint: 'Press Space.', test: ev => ev.type === 'pager' && ev.key === 'pgdn'},
+    {text: 'Quit the pager with q.', hint: 'Press q.', test: ev => ev.type === 'pager' && ev.key === 'quit'},
+  ], done: 'Space, b, and q are the three keys you will use in almost every pager you ever meet — not just journalctl\'s.'},
+
+{ id: 'anatomy', mod: 'First look', title: 'Read an entry', intro: [
+    'Every line is: a timestamp, the hostname, who said it (and their process id in brackets), then the message. Severe lines are tinted red or amber so trouble jumps out.',
+    "Rather than wade through everything, start narrowing by time. --since/-S and --until/-U both understand plain words like today, yesterday, and now."],
+  steps: [
+    { text: 'Show only what has happened today: journalctl -S today (or --since today).', hint: 'journalctl -S today', test: ev => ev.type === 'cmd' && ev.cmd.since && ev.cmd.since.kind === 'today' && !ev.cmd.until },
+    { text: 'Quit the pager when you are done looking.', hint: 'Press q.', test: ev => ev.type === 'pager' && ev.key === 'quit' },
+  ], done: "today, yesterday, tomorrow, and now are shortcuts -- the full form is a date, or a date and time, like '2026-11-03 08:00:00'." },
+
+{ id: 'direction', mod: 'First look', title: 'Oldest first, but...', intro: [
+    "The journal itself always stores oldest-to-newest. But journalctl's pager jumps straight to the end for you, like `less +G`, so the newest line is the first thing you see.",
+    'g jumps to the very top of whatever is loaded; G jumps back to the bottom. And if you just want newest-first output without touching the pager, there is a flag for that: -r / --reverse.'],
+  steps: [
+    { text: "Run journalctl again. You're already at the bottom; press G to prove it (it won't move).", hint: 'Press G (shift+g).', test: ev => ev.type === 'pager' && ev.key === 'end' },
+    { text: 'Now press g to jump all the way to the first entry the journal has.', hint: 'Press g.', test: ev => ev.type === 'pager' && ev.key === 'top' },
+    { text: 'Quit, then ask for newest-first directly: journalctl -r', hint: 'journalctl -r', test: ev => ev.type === 'cmd' && ev.cmd.reverse && ev.cmd.units.length === 0 && !ev.cmd.kernel },
+  ], done: 'Reaching for -r is usually easier than paging once you know you want newest-first.' },
+
+{ id: 'byunit', mod: 'Narrow it down', title: 'One service at a time', intro: [
+    "This box runs a little app called lighthouse.service, behind nginx.service, backed by postgresql.service. -u (--unit) shows only one unit's lines — and it will add .service for you if you leave the suffix off.",
+    'Give -u more than once and you get all of them — repeating a filter is OR, not AND.'],
+  steps: [
+    { text: 'Show only the lighthouse app: journalctl -u lighthouse.service', hint: 'journalctl -u lighthouse.service', test: ev => ev.type === 'cmd' && ev.cmd.units.length === 1 && ev.cmd.units[0] === 'lighthouse.service' },
+    { text: 'Now also include nginx, in the same command: journalctl -u lighthouse.service -u nginx.service', hint: 'Repeat -u for the second unit.', test: ev => ev.type === 'cmd' && ev.cmd.units.length === 2 && ev.cmd.units.includes('lighthouse.service') && ev.cmd.units.includes('nginx.service') },
+  ], done: 'You can drop ".service" too -- "journalctl -u lighthouse" works exactly the same.' },
+
+{ id: 'kernel', mod: 'Narrow it down', title: "What the kernel saw", intro: [
+    "-k (or --dmesg) shows only kernel messages — no services, just the kernel's own diary. Somewhere in here is the night this box ran out of memory.",
+    'Combine it with other filters like anything else.'],
+  steps: [
+    { text: 'Show only kernel messages: journalctl -k', hint: 'journalctl -k', test: ev => ev.type === 'cmd' && ev.cmd.kernel && !ev.cmd.prioMax },
+    { text: 'Now narrow the kernel log to just the errors and worse: journalctl -k -p err', hint: 'journalctl -k -p err', test: ev => ev.type === 'cmd' && ev.cmd.kernel && ev.cmd.prioMax === 3 },
+  ], done: "That's the oom-killer going to work, and the panic that followed." },
+
+{ id: 'priority', mod: 'Narrow it down', title: 'By how bad it is', intro: [
+    'Every line carries a priority 0-7: emerg, alert, crit, err, warning, notice, info, debug, in that order from worst to least severe. -p / --priority shows that level and everything worse (lower-numbered).',
+    'Give it a range with two dots, like -p warning..err, to see a band instead of "and worse".'],
+  steps: [
+    { text: 'Show errors and worse, system-wide: journalctl -p err', hint: 'journalctl -p err', test: ev => ev.type === 'cmd' && ev.cmd.prioMax === 3 && !ev.cmd.kernel },
+    { text: 'Now go one step worse: just crit and above: journalctl -p crit', hint: 'journalctl -p crit', test: ev => ev.type === 'cmd' && ev.cmd.prioMax === 2 },
+  ], done: "That's the exact line where lighthouse's allocation failed, and the kernel panic after it -- both crit or worse." },
+
+{ id: 'time', mod: 'Narrow it down', title: 'By when', intro: [
+    'You already know today/yesterday/now. --since and --until also take an exact date, or date and time, and simple relative offsets like "-6 hours".',
+    'Combine both to fence in a single window.'],
+  steps: [
+    { text: 'Everything from yesterday onward: journalctl --since yesterday', hint: 'journalctl --since yesterday', test: ev => ev.type === 'cmd' && ev.cmd.since && ev.cmd.since.kind === 'yesterday' && !ev.cmd.until },
+    { text: 'Fence in the crash night exactly: journalctl --since "2026-11-03" --until "2026-11-04"', hint: 'journalctl --since "2026-11-03" --until "2026-11-04"', test: ev => ev.type === 'cmd' && ev.cmd.since && ev.cmd.since.d && ev.cmd.since.d.getDate() === 3 && ev.cmd.since.d.getMonth() === 10 && ev.cmd.until && ev.cmd.until.d && ev.cmd.until.d.getDate() === 4 && ev.cmd.until.d.getMonth() === 10 },
+    { text: 'And relative to right now: the last 6 hours: journalctl --since "-6 hours"', hint: 'journalctl --since "-6 hours"', test: ev => ev.type === 'cmd' && ev.cmd.since && ev.cmd.since.kind === 'relative' && Math.abs(ev.cmd.since.d - (NOW.getTime() - 6 * 3600000)) < 60000 },
+  ], done: 'Relative offsets are measured from the moment you run the command.' },
+
+{ id: 'boot', mod: 'Narrow it down', title: 'Which boot', intro: [
+    'The journal remembers every boot since it last got vacuumed, each with its own ID. --list-boots lists them; -b (--boot) shows only one, by offset (0 = current, -1 = previous, ...) or by ID prefix.',
+    'This machine crashed once. Find out which boot that was.'],
+  steps: [
+    { text: 'List every boot this journal remembers: journalctl --list-boots', hint: 'journalctl --list-boots', test: ev => ev.type === 'cmd' && ev.type === 'cmd' && ev.cmd.listBoots },
+    { text: 'Look at the one right before this one: journalctl -b -1', hint: 'journalctl -b -1', test: ev => ev.type === 'cmd' && ev.cmd.boot === -1 },
+    { text: "Now find the errors from the boot before THAT: journalctl -b -2 -p err", hint: 'journalctl -b -2 -p err', test: ev => ev.type === 'cmd' && ev.cmd.boot === -2 && ev.cmd.prioMax === 3 },
+  ], done: 'Boot -2 is the crash. Boot -1 is the clean run that followed it.' },
+
+{ id: 'follow', mod: 'Watching live', title: 'Follow the present', intro: [
+    "-f (--follow) is journalctl's version of `tail -f`: it prints new lines as they arrive and never stops on its own. The pager is skipped entirely -- there is nothing to page through yet.",
+    'Press Ctrl+C to stop following, same as any other running command.'],
+  steps: [
+    { text: 'Start following everything: journalctl -f', hint: 'journalctl -f', test: ev => ev.type === 'cmd' && ev.type === 'cmd' && ev.cmd && ev.cmd.follow && ev.cmd.units.length === 0 },
+    { text: 'Wait for at least one new line to arrive, then press Ctrl+C to stop.', hint: 'Watch the terminal, then press Ctrl+C.', test: ev => ev.type === 'follow-stop' },
+  ], done: 'Nothing was lost by stopping -- -f only ever adds to what is already stored.' },
+
+{ id: 'followfilter', mod: 'Watching live', title: 'Follow, your way', intro: [
+    'Combine -f with any filter you already know -- it keeps applying live. -n / --lines caps how much history you see before following begins (the default is a short catch-up, like tail).',
+    "Short flags that don't take a value can be bunched together: -fu is the same as -f -u."],
+  steps: [
+    { text: 'Follow just nginx: journalctl -fu nginx.service', hint: 'journalctl -fu nginx.service', test: ev => ev.type === 'cmd' && ev.cmd.follow && ev.cmd.units.length === 1 && ev.cmd.units[0] === 'nginx.service' },
+    { text: 'Stop it with Ctrl+C.', hint: 'Press Ctrl+C.', test: ev => ev.type === 'follow-stop' },
+    { text: 'Now just the last 10 lines, no following: journalctl -n 10', hint: 'journalctl -n 10', test: ev => ev.type === 'cmd' && ev.cmd.lines === 10 && !ev.cmd.follow },
+  ], done: '-n works with or without -f -- it always means "just the last N matching lines."' },
+
+{ id: 'outputs', mod: 'Output & search', title: 'Same message, different shapes', intro: [
+    '-o / --output changes how a line is printed, not which lines match. short-iso and verbose are for humans who want exact timestamps; json and json-pretty are for feeding another program; cat strips everything down to the bare message.'],
+  steps: [
+    { text: 'ISO timestamps: journalctl -u lighthouse.service -o short-iso', hint: 'journalctl -u lighthouse.service -o short-iso', test: ev => ev.type === 'cmd' && ev.cmd.output === 'short-iso' },
+    { text: 'Structured, for scripts: journalctl -u lighthouse.service -o json-pretty', hint: 'journalctl -u lighthouse.service -o json-pretty', test: ev => ev.type === 'cmd' && (ev.cmd.output === 'json-pretty' || ev.cmd.output === 'json') },
+    { text: 'Just the messages, nothing else: journalctl -u lighthouse.service -o cat', hint: 'journalctl -u lighthouse.service -o cat', test: ev => ev.type === 'cmd' && ev.cmd.output === 'cat' },
+  ], done: '-o cat is the one you pipe into grep, wc, or anything else that only wants the text.' },
+
+{ id: 'grep', mod: 'Output & search', title: 'Grep the past', intro: [
+    "-g (--grep) searches message text with a regular expression, without you needing to know which unit or priority to look under. Add -i for case-insensitive.",
+    "Somewhere in this journal, someone tried to brute-force a login."],
+  steps: [
+    { text: 'Search every unit for failed logins: journalctl -g "Failed password"', hint: 'journalctl -g "Failed password"', test: ev => ev.type === 'cmd' && ev.cmd.grep && /failed password/i.test(ev.cmd.grep) },
+    { text: 'Now case-insensitively find the kernel panic by searching for "panic": journalctl -g panic -i', hint: 'journalctl -g panic -i', test: ev => ev.type === 'cmd' && ev.cmd.grep && /panic/i.test(ev.cmd.grep) && ev.cmd.icase },
+  ], done: "That's the attacker at 203.0.113.44, and the kernel panic from the OOM crash -- found without knowing which unit logged either one." },
+
+{ id: 'explain', mod: 'Output & search', title: 'Ask it to explain: -xe', intro: [
+    "journalctl -xe is the command everyone eventually pastes into a terminal after something breaks. -e (--pager-end) jumps straight to the end; -x (--catalog) adds systemd's own explanation underneath any message that has one.",
+    'Point it at the service that failed.'],
+  steps: [
+    { text: 'Run it bare first: journalctl -xe', hint: 'journalctl -xe', test: ev => ev.type === 'cmd' && ev.cmd.explain },
+    { text: 'Now aim it at lighthouse specifically, to read the explanation attached to its failure: journalctl -xe -u lighthouse.service', hint: 'journalctl -xe -u lighthouse.service', test: ev => ev.type === 'cmd' && ev.cmd.explain && ev.cmd.units.includes('lighthouse.service') },
+  ], done: "Those indented '-- Subject / Defined-By / Support' lines come straight from systemd's message catalog." },
+
+{ id: 'fields', mod: 'Precision fields', title: 'Match exact fields', intro: [
+    'Under the hood every entry is a set of fields: _PID, _COMM, _SYSTEMD_UNIT, PRIORITY, SYSLOG_IDENTIFIER, and more. Give journalctl FIELD=value directly and it filters on it -- this is what -u and -p are shorthand for.',
+    'Different fields AND together; the same field repeated is OR, exactly like -u.'],
+  steps: [
+    { text: "Find everything sshd itself logged, by field instead of flag: journalctl _COMM=sshd", hint: 'journalctl _COMM=sshd', test: ev => ev.type === 'cmd' && ev.cmd.fields.some(g => g.some(m => m.field.toUpperCase() === '_COMM' && m.value.toLowerCase() === 'sshd')) },
+    { text: "Now AND two fields together to land on the exact crit line from the crash: journalctl _SYSTEMD_UNIT=lighthouse.service PRIORITY=2", hint: 'journalctl _SYSTEMD_UNIT=lighthouse.service PRIORITY=2', test: ev => ev.type === 'cmd' && ev.cmd.fields.some(g => g.some(m => m.field.toUpperCase() === '_SYSTEMD_UNIT' && m.value.toLowerCase() === 'lighthouse.service') && g.some(m => m.field.toUpperCase() === 'PRIORITY' && m.value === '2')) },
+  ], done: '-u, -p, and plain FIELD=value filters are the same mechanism wearing different clothes.' },
+
+{ id: 'diskusage', mod: 'Keep the house', title: 'How much space, and how to free it', intro: [
+    "The journal lives on disk and grows forever unless something trims it. --disk-usage reports the total; --vacuum-time, --vacuum-size, and --vacuum-files each trim it a different way.",
+    'None of this touches the live, current-boot journal — only older, archived files.'],
+  steps: [
+    { text: 'Check how much space it is using: journalctl --disk-usage', hint: 'journalctl --disk-usage', test: ev => ev.type === 'cmd' && ev.cmd.diskUsage },
+    { text: 'Free anything older than a week: journalctl --vacuum-time=7d', hint: 'journalctl --vacuum-time=7d', test: ev => ev.type === 'cmd' && ev.cmd.vacTime },
+  ], done: 'For a permanent limit rather than a one-off cleanup, see the journald.conf builder tab.' },
+
+{ id: 'challenge', mod: 'Put it together', title: 'Expert challenge', intro: [
+    "Three real investigations, each needing more than one flag at once. Use everything from this course."],
+  steps: [
+    { text: "In one command, from the kernel's own log, show the moment memory ran out (the word is in the message somewhere).", hint: 'journalctl -k -g "out of memory" -i', test: ev => ev.type === 'cmd' && ev.cmd.kernel && ev.cmd.grep && /out of memory|oom/i.test(ev.cmd.grep) },
+    { text: 'Now, oldest first, in JSON, every line about lighthouse.service failing.', hint: 'journalctl -u lighthouse.service -g fail -i -o json', test: ev => ev.type === 'cmd' && !ev.cmd.reverse && (ev.cmd.output === 'json' || ev.cmd.output === 'json-pretty') && ev.cmd.units.includes('lighthouse.service') },
+    { text: 'Finally, prove the break-in attempt happened on the boot right before this one.', hint: 'journalctl -b -1 -g "failed password" -i', test: ev => ev.type === 'cmd' && ev.cmd.boot === -1 && ev.cmd.grep && /failed password/i.test(ev.cmd.grep) },
+  ], done: 'That is a real incident write-up, start to finish, done entirely from the journal.' },
+
+{ id: 'free', mod: 'Put it together', title: 'Free play', intro: [
+    'No more checks. Pull up whatever you like, try flags you have not used yet, and see what observatory has been up to.'],
+  steps: [
+    { text: 'Run any journalctl command you like.', hint: 'Anything starting with journalctl.', test: ev => ev.type === 'cmd' },
+  ], done: "You've got the whole command. Go dig." },
+];
+
+const MODS = [];
+LESSONS.forEach((l, i) => { let m = MODS.find(x => x.name === l.mod); if (!m) { m = {name: l.mod, idx: []}; MODS.push(m); } m.idx.push(i); });
+
+let cur = Math.min(saved.lesson || 0, LESSONS.length - 1);
+let step = 0;
+let hintShown = false;
+
+function lessonState(i) { return saved.done.includes(LESSONS[i].id) ? 'done' : i === cur ? 'current' : 'todo'; }
+function openLesson(i, {reset = true} = {}) {
+  cur = i; saved.lesson = i; persist();
+  if (reset) { step = 0; hintShown = false; }
+  S.pager = null; stopFollow();
+  render(); renderLesson(); renderRail();
+}
+function checkLesson(ev) {
+  const L = LESSONS[cur];
+  if (!L || step >= L.steps.length) return;
+  if (L.steps[step].test(ev)) {
+    step++; hintShown = false;
+    if (step >= L.steps.length && !saved.done.includes(L.id)) { saved.done.push(L.id); persist(); }
+    renderLesson(); renderRail();
+  }
+}
+function renderLesson() {
+  const L = LESSONS[cur];
+  const doneAll = step >= L.steps.length;
+  $('#lesson').innerHTML = `
+    <div class="eyebrow">${esc(L.mod)}</div>
+    <h1>${esc(L.title)}</h1>
+    <div class="intro">${L.intro.map(p => `<p>${p}</p>`).join('')}</div>
+    <ol class="steps">${L.steps.map((s, i) => `<li class="${i < step ? 'done' : i === step ? 'current' : 'todo'}">${esc(s.text)}${i === step && hintShown ? `<div class="hint">${esc(s.hint)}</div>` : ''}${i === step ? `<button class="hint-btn" id="hint-btn" type="button">${hintShown ? 'Hide hint' : 'Hint'}</button>` : ''}</li>`).join('')}</ol>
+    ${doneAll ? `<div class="complete"><strong>Lesson complete</strong>${esc(L.done)}</div>` : ''}
+    <div class="lesson-actions">
+      ${cur > 0 ? '<button class="btn" id="les-prev" type="button">Previous</button>' : ''}
+      ${cur < LESSONS.length - 1 ? `<button class="btn ${doneAll ? 'primary' : ''}" id="les-next" type="button">Next lesson</button>` : ''}
+      <button class="btn" id="les-reset" type="button">Restart this lesson</button>
+    </div>`;
+  const hb = $('#hint-btn'); if (hb) hb.onclick = () => { hintShown = !hintShown; renderLesson(); };
+  const pv = $('#les-prev'); if (pv) pv.onclick = () => openLesson(cur - 1);
+  const nx = $('#les-next'); if (nx) nx.onclick = () => openLesson(cur + 1);
+  $('#les-reset').onclick = () => openLesson(cur);
+}
+function renderRail() {
+  $('#progress-count').textContent = `${saved.done.length}/${LESSONS.length}`;
+  $('#mods').innerHTML = MODS.map(m => `<div class="mod"><h3>${esc(m.name)}</h3><ol>${m.idx.map(i => `<li><button data-i="${i}" aria-current="${i === cur}" class="${lessonState(i) === 'done' ? 'done' : ''}"><span class="tick">${lessonState(i) === 'done' ? '✓' : String(i + 1).padStart(2, '0')}</span>${esc(LESSONS[i].title)}</button></li>`).join('')}</ol></div>`).join('');
+  $$('#mods button').forEach(b => b.onclick = () => openLesson(+b.dataset.i));
+}
+
+/* ---------------- rendering the terminal ---------------- */
+let rq = false;
+function scheduleRender() { if (rq) return; rq = true; requestAnimationFrame(() => { rq = false; render(); }); }
+function cursorHtml(ch = ' ') { return `<span class="cur${S.focused ? '' : ' hollow'}">${esc(ch)}</span>`; }
+function hiText(text, matches, query) {
+  if (!matches || !query) return esc(text);
+  try { const re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, c => '\\' + c), 'ig'); return esc(text).replace(new RegExp(esc(query).replace(/[.*+?^${}()|[\]\\]/g, c => '\\' + c), 'ig'), m => `<span class="hl">${m}</span>`); } catch (e) { return esc(text); }
+}
+function render() {
+  const body = $('#term-body');
+  const h = body.clientHeight || 340;
+  S.areaRows = Math.max(4, Math.floor(h / LH));
+  const bar = $('#pager-bar');
+  if (S.pager) {
+    const pg = S.pager; pg.rows = S.areaRows;
+    const max = Math.max(0, pg.buf.length - pg.rows);
+    pg.top = Math.min(pg.top, max);
+    const rows = pg.buf.slice(pg.top, pg.top + pg.rows);
+    body.innerHTML = rows.map(l => `<div class="ln ${l.cls || ''}">${hiText(l.text, pg.matches.length, pg.query)}</div>`).join('') || '<div class="ln">&nbsp;</div>';
+    bar.hidden = false;
+    bar.innerHTML = pg.searching
+      ? `<span>/${esc(pg.qbuf)}${cursorHtml()}</span>`
+      : `<span>lines ${pg.top + 1}-${Math.min(pg.buf.length, pg.top + pg.rows)}/${pg.buf.length}</span><span>${pg.top >= max ? '(END)' : ''} q:quit  space:down  b:up  g/G:top/bottom  /:search</span>`;
+  } else {
+    bar.hidden = true;
+    const rows = S.areaRows;
+    const tail = S.lines.slice(-Math.max(0, rows - 1));
+    const html = tail.map(l => `<div class="ln ${l.cls || ''}">${esc(l.text)}</div>`).join('');
+    const promptHtml = S.follow ? '' : `<div class="ln">${esc(promptLine() + S.input)}${cursorHtml()}</div>`;
+    body.innerHTML = html + promptHtml;
+  }
+  $('#term').classList.toggle('focused', S.focused);
+  $('#ind-mode').textContent = S.follow ? 'following' : S.pager ? (S.pager.searching ? 'search' : 'pager') : 'shell';
+  $('#ind-mode').classList.toggle('on', !!S.follow || !!S.pager);
+  $('#ind-boot').textContent = 'boot ' + S.boot;
+  renderKeybar();
+}
+function renderKeybar() {
+  const kb = $('#keybar');
+  if (S.follow) { kb.innerHTML = `<button data-k="C-c">Ctrl+C</button>`; }
+  else if (S.pager) { kb.innerHTML = S.pager.searching
+    ? `<button data-k="Enter">Enter</button><button data-k="Escape">Esc</button>`
+    : [['Space', 'Space'], ['b', 'b'], ['g', 'g'], ['G', 'G'], ['/', '/'], ['n', 'n'], ['N', 'N'], ['q', 'q']].map(([k, l]) => `<button data-k="${k}">${l}</button>`).join(''); }
+  else { kb.innerHTML = `<button data-k="C-c">Ctrl+C</button><button data-k="Up">&#8593;</button><button data-k="Down">&#8595;</button>`; }
+  $$('#keybar button').forEach(b => b.onclick = () => { handleKey(b.dataset.k); focusTerm(); });
+}
+
+/* ---------------- explain strip ---------------- */
+function explainFor(ev) {
+  if (ev.type !== 'cmd') return null;
+  const c = ev.cmd;
+  if (c.listBoots) return 'journalctl --list-boots -- every boot this journal remembers.';
+  if (c.diskUsage) return 'journalctl --disk-usage -- total space the journal occupies on disk.';
+  if (c.vacTime || c.vacSize || c.vacFiles) return 'journalctl --vacuum-* -- trims old, archived journal files.';
+  if (ev.kind === 'follow-start' || c.follow) return `journalctl ${c.raw.replace(/^journalctl ?/, '')} -- streaming new matching entries live.`;
+  return `${c.raw} -- ${c.units.length ? 'unit: ' + c.units.join(', ') + '. ' : ''}${c.kernel ? 'kernel only. ' : ''}${c.prioMax != null ? 'priority <= ' + PRIO_NAMES[c.prioMax] + '. ' : ''}${c.grep ? 'text match: /' + c.grep + '/. ' : ''}${ev.total != null ? ev.shown + ' of ' + ev.total + ' matching lines.' : ''}`.trim();
+}
+function updateExplain(ev) {
+  const t = explainFor(ev);
+  $('#explain').innerHTML = t ? esc(t) : '<span class="muted">What each command actually did shows up here.</span>';
+}
+const _emit = emit;
+function emitAndExplain(type, data) { _emit(type, data); if (type === 'cmd') updateExplain({type, ...data}); }
+
+/* ---------------- drill: flashcards ---------------- */
+const CARDS = [
+  ['Which priority number is "err"?', '3 -- emerg 0, alert 1, crit 2, err 3, warning 4, notice 5, info 6, debug 7.'],
+  ['-p err shows which lines?', 'err and everything more severe: err, crit, alert, emerg.'],
+  ['What does -k (or --dmesg) restrict output to?', 'Kernel messages only.'],
+  ['What does -u do if you leave off ".service"?', 'journalctl adds .service for you automatically.'],
+  ['-f does what?', 'Follows the journal live, like tail -f, and skips the pager entirely.'],
+  ['-r does what?', 'Reverses the output, newest entry first.'],
+  ['What does -n 20 mean?', 'Show only the last 20 matching lines.'],
+  ['-o cat strips a line down to what?', 'Just the bare message text, no timestamp or metadata.'],
+  ['-g (--grep) does what?', 'Filters by a regular expression matched against the message text.'],
+  ['What does -x (--catalog) add?', "Systemd's own explanation for messages that have one, indented underneath."],
+  ['In the pager, what does g do? What about G?', 'g jumps to the very top; G jumps to the very bottom.'],
+  ['What does -b -1 mean?', 'Show only the boot before the current one.'],
+  ['--list-boots does what?', 'Lists every boot the journal remembers, oldest first, with its ID and time span.'],
+  ['--since "-6 hours" means what?', 'Entries from six hours before the moment you ran the command.'],
+  ['--disk-usage does what?', 'Reports how much disk space the whole journal occupies.'],
+  ['What is the difference between "-u a -u b" and "FIELD=a FIELD=b"?', 'Nothing -- repeating the same field (by flag or by name) is always OR.'],
+  ['What does giving two different FIELD=value filters do?', "ANDs them together -- both must match the same entry."],
+  ['What is journalctl -xe, spelled out?', '--catalog --pager-end: jump to the end, and explain anything that has an explanation.'],
+];
+const drill = {queue: [], card: null, right: 0, wrong: 0};
+function drillNext() { if (!drill.queue.length) drill.queue = shuffle([...CARDS]); drill.card = drill.queue.shift(); renderDrill(); }
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+/* ---------------- drill: full commands ---------------- */
+const CMD_CARDS = [
+  ['Show only lines from nginx.service.', /-u\s*nginx(\.service)?\b/i],
+  ['Show only kernel messages.', /(-k\b|--dmesg\b)/i],
+  ['Show errors and worse, everywhere.', /-p\s*(err|3)\b/i],
+  ['Follow the journal live.', /(-f\b|--follow\b)/i],
+  ['Show the last 50 lines, no follow.', /-n\s*50\b/],
+  ['Show newest entries first.', /(-r\b|--reverse\b)/i],
+  ['Show entries since yesterday.', /--since[= ]?["']?yesterday/i],
+  ['List every boot the journal remembers.', /--list-boots\b/],
+  ['Show only the previous boot.', /(-b|--boot)[= ]?-1\b/],
+  ['Output every line as pretty-printed JSON.', /-o\s*json-pretty\b/],
+  ['Output just the bare message text.', /-o\s*cat\b/],
+  ['Search every unit for the text "timeout", ignoring case.', /(-g|--grep)[= ]?["']?timeout["']?.*(-i\b|--?)|(-i\b).*timeout/i],
+  ['Check how much disk space the journal is using.', /--disk-usage\b/],
+  ['Free archived logs older than 2 weeks.', /--vacuum-time[= ]?2w/i],
+  ['Show journalctl\'s own explanation for anything that has one.', /(-x\b|--catalog\b)/i],
+  ['Show only entries from process ID 4821.', /_PID=4821\b/],
+];
+const cmdDrill = {queue: [], card: null};
+function cmdNext() { if (!cmdDrill.queue.length) cmdDrill.queue = shuffle([...CMD_CARDS]); cmdDrill.card = cmdDrill.queue.shift(); $('#cmd-input').value = ''; $('#cmd-state').textContent = ''; $('#cmd-state').className = 'state'; renderDrill(); }
+
+function renderDrill() {
+  if ($('#drill-cards').getAttribute('aria-pressed') === 'true') {
+    if (!drill.card) drillNext();
+    $('#pad-q').textContent = drill.card[0];
+    $('#pad-a').textContent = '';
+    $('#pad-a').className = 'a';
+    $('#pad-grade').hidden = true;
+    $('#pad-score').textContent = `${drill.right} remembered, ${drill.wrong} missed this round.`;
+  } else {
+    if (!cmdDrill.card) cmdNext();
+    $('#cmd-q').textContent = cmdDrill.card[0];
+  }
+}
+
+/* ---------------- reference ---------------- */
+function refTable(title, rows) { return `<h3>${esc(title)}</h3><div class="tbl-wrap"><table><thead><tr><th>Flag</th><th>Long form</th><th>Does</th></tr></thead><tbody>${rows.map(([a, b, c]) => `<tr><td><code>${esc(a)}</code></td><td><code>${esc(b)}</code></td><td>${esc(c)}</td></tr>`).join('')}</tbody></table></div>`; }
+function renderReference() {
+  $('#reference').innerHTML = `
+    <h2>Reference</h2>
+    <p class="lead">Every flag this trainer understands, plus the priority scale, output formats, and the field names behind -u and -p.</p>
+    <div class="ref-grid">
+      <div>${refTable('Selecting', [
+        ['-u', '--unit=NAME', 'Only this unit (adds .service if you leave it off). Repeat for OR.'],
+        ['-k', '--dmesg', 'Kernel messages only.'],
+        ['-b', '--boot[=ID]', 'Only this boot: 0 current, -1 previous, ... or an ID prefix. No value = current.'],
+        ['-p', '--priority=X', 'This priority and worse. X..Y is an inclusive range.'],
+        ['-S', '--since=WHEN', 'Only entries at or after WHEN.'],
+        ['-U', '--until=WHEN', 'Only entries at or before WHEN.'],
+      ])}
+      ${refTable('Viewing', [
+        ['-f', '--follow', 'Stream new entries live; skips the pager.'],
+        ['-n', '--lines=N', 'Only the last N matching lines.'],
+        ['-r', '--reverse', 'Newest entry first.'],
+        ['-e', '--pager-end', 'Jump the pager to the end (already the default).'],
+        ['-o', '--output=FORMAT', 'short, short-iso, short-precise, verbose, json, json-pretty, cat.'],
+        ['-x', '--catalog', "Add systemd's explanation where one exists."],
+        ['', '--no-pager', 'Print directly, never open a pager.'],
+      ])}
+      ${refTable('Searching', [
+        ['-g', '--grep=REGEX', 'Only messages matching this pattern.'],
+        ['-i', '--case-insensitive', 'Make -g ignore case (the default).'],
+        ['', '--case-sensitive', 'Make -g respect case.'],
+        ['', 'FIELD=value', 'Match a raw field directly. Same field repeated = OR; different fields = AND. "+" also means OR.'],
+      ])}
+      ${refTable('Housekeeping', [
+        ['', '--list-boots', 'List every boot the journal remembers.'],
+        ['', '--disk-usage', 'Total space the journal occupies.'],
+        ['', '--vacuum-time=T', 'Delete archived files older than T (e.g. 2d, 1month).'],
+        ['', '--vacuum-size=S', 'Delete archived files until usage is under S (e.g. 500M).'],
+        ['', '--vacuum-files=N', 'Keep only the N most recent archived files.'],
+      ])}
+    </div>
+    <h3>Priority scale</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>#</th><th>Name</th><th>Roughly means</th></tr></thead><tbody>
+      ${[['0', 'emerg', 'System is unusable'], ['1', 'alert', 'Must be fixed right now'], ['2', 'crit', 'Critical condition'], ['3', 'err', 'An error'], ['4', 'warning', 'Could become a problem'], ['5', 'notice', 'Unusual, but normal'], ['6', 'info', 'Routine'], ['7', 'debug', 'Developer detail']]
+        .map(([n, name, d]) => `<tr><td>${n}</td><td><code>${name}</code></td><td>${d}</td></tr>`).join('')}
+    </tbody></table></div>
+    <h3>Common fields</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Field</th><th>Holds</th></tr></thead><tbody>
+      ${[['_PID', 'The process ID that logged the line'], ['_COMM', 'The executable name (e.g. sshd)'], ['_SYSTEMD_UNIT', 'The systemd unit responsible, e.g. nginx.service'], ['SYSLOG_IDENTIFIER', 'The tag the line was logged under'], ['PRIORITY', 'The 0-7 severity, as a plain number'], ['_TRANSPORT', '"kernel" or "syslog"'], ['MESSAGE', 'The text of the line itself']]
+        .map(([f, d]) => `<tr><td><code>${f}</code></td><td>${d}</td></tr>`).join('')}
+    </tbody></table></div>
+    <h3>Pager keys (inside journalctl's own less)</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Does</th></tr></thead><tbody>
+      ${[['Space / Page Down', 'Forward one screen'], ['b / Page Up', 'Back one screen'], ['g', 'Jump to the top'], ['G', 'Jump to the bottom'], ['/text Enter', 'Search forward'], ['n / N', 'Next / previous match'], ['q', 'Quit the pager']]
+        .map(([k, d]) => `<tr><td>${k}</td><td>${d}</td></tr>`).join('')}
+    </tbody></table></div>
+    <h3>Links</h3>
+    <ul class="links">
+      <li><a href="https://www.freedesktop.org/software/systemd/man/latest/journalctl.html" target="_blank" rel="noopener">journalctl(1) — official manual</a></li>
+      <li><a href="https://www.freedesktop.org/software/systemd/man/latest/journald.conf.html" target="_blank" rel="noopener">journald.conf(5) — official manual</a></li>
+      <li><a href="https://www.freedesktop.org/software/systemd/man/latest/systemd.journal-fields.html" target="_blank" rel="noopener">systemd.journal-fields(7) — every field name</a></li>
+    </ul>`;
+}
+
+/* ---------------- journald.conf builder ---------------- */
+const CONF_OPTS = [
+  {k: 'persist', label: 'Keep logs across reboots', note: 'Storage=persistent instead of the volatile, RAM-only default.', def: true},
+  {k: 'compress', label: 'Compress archived logs', note: 'Compress=yes, the default -- turn off only to debug the journal itself.', def: true},
+  {k: 'maxuse', label: 'Cap total size', note: 'SystemMaxUse=', def: true, val: '500M'},
+  {k: 'retain', label: 'Cap how long entries are kept', note: 'MaxRetentionSec=', def: true, val: '1month'},
+  {k: 'forward', label: 'Also forward to the legacy syslog socket', note: 'ForwardToSyslog=', def: false},
+  {k: 'ratelimit', label: 'Rate-limit noisy services', note: 'RateLimitIntervalSec= / RateLimitBurst=', def: true, val: '30s / 10000'},
+];
+function renderConfForm() {
+  $('#conf-form').innerHTML = CONF_OPTS.map(o => `<label class="opt"><input type="checkbox" data-k="${o.k}" ${o.def ? 'checked' : ''}><span><strong>${esc(o.label)}</strong><small>${o.note}</small>${o.val ? `<input type="text" data-v="${o.k}" value="${esc(o.val)}" style="margin-top:6px;width:100%">` : ''}</span></label>`).join('');
+  $$('#conf-form input').forEach(i => i.addEventListener('input', renderConf));
+}
+function buildConf() {
+  const on = k => $(`#conf-form input[data-k="${k}"]`).checked;
+  const val = k => { const el = $(`#conf-form input[data-v="${k}"]`); return el ? el.value : ''; };
+  const lines = ['# /etc/systemd/journald.conf', '# Generated by -xe Academy -- restart the journal to apply:', '#   sudo systemctl restart systemd-journald', '', '[Journal]'];
+  lines.push(`Storage=${on('persist') ? 'persistent' : 'volatile'}`);
+  lines.push(`Compress=${on('compress') ? 'yes' : 'no'}`);
+  if (on('maxuse')) lines.push(`SystemMaxUse=${val('maxuse') || '500M'}`); else lines.push('#SystemMaxUse=');
+  if (on('retain')) lines.push(`MaxRetentionSec=${val('retain') || '1month'}`); else lines.push('#MaxRetentionSec=');
+  lines.push(`ForwardToSyslog=${on('forward') ? 'yes' : 'no'}`);
+  if (on('ratelimit')) { const [iv, burst] = (val('ratelimit') || '30s / 10000').split('/').map(s => s.trim()); lines.push(`RateLimitIntervalSec=${iv || '30s'}`, `RateLimitBurst=${burst || '10000'}`); }
+  else lines.push('RateLimitIntervalSec=0', 'RateLimitBurst=0');
+  return lines.join('\n') + '\n';
+}
+function renderConf() { $('#conf-out').textContent = buildConf(); }
+
+/* ---------------- tabs ---------------- */
+function showView(v) {
+  $$('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === v)));
+  $$('.view').forEach(s => s.hidden = s.id !== 'view-' + v);
+  if (v === 'reference') renderReference();
+  if (v === 'config') { renderConfForm(); renderConf(); }
+  if (v === 'drill') renderDrill();
+}
+
+/* ---------------- input wiring ---------------- */
+function focusTerm() { try { $('#kbd').focus({preventScroll: true}); } catch (e) { $('#kbd').focus(); } }
+$('#term').addEventListener('mousedown', e => { if (e.target.closest('button')) return; focusTerm(); });
+$('#kbd').addEventListener('focus', () => { S.focused = true; render(); });
+$('#kbd').addEventListener('blur', () => { S.focused = false; render(); });
+$('#kbd').addEventListener('keydown', e => {
+  if (e.metaKey || (e.altKey && e.key !== 'Backspace')) return;
+  const k = normKey(e);
+  if (k == null) return;
+  if (['Enter', 'Backspace', 'Space', 'Up', 'Down', 'PageUp', 'PageDown', 'Tab'].includes(e.key) || e.key === ' ' || k.startsWith('C-') || k === 'Escape') e.preventDefault();
+  if (e.key === 'Tab') return;
+  handleKey(k);
+});
+new ResizeObserver(() => scheduleRender()).observe($('#term-body'));
+
+$$('.tabs button').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+
+$('#drill-cards').onclick = () => { $('#drill-cards').setAttribute('aria-pressed', 'true'); $('#drill-cmds').setAttribute('aria-pressed', 'false'); $('#drill-cards-panel').hidden = false; $('#drill-cmds-panel').hidden = true; renderDrill(); };
+$('#drill-cmds').onclick = () => { $('#drill-cards').setAttribute('aria-pressed', 'false'); $('#drill-cmds').setAttribute('aria-pressed', 'true'); $('#drill-cards-panel').hidden = true; $('#drill-cmds-panel').hidden = false; renderDrill(); };
+$('#pad').addEventListener('click', () => {
+  if ($('#pad-a').textContent) return;
+  $('#pad-a').textContent = drill.card[1]; $('#pad-a').classList.add('good'); $('#pad-grade').hidden = false;
+});
+$('#pad').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#pad').click(); } });
+$('#pad-got').onclick = () => { drill.right++; drillNext(); };
+$('#pad-miss').onclick = () => { drill.wrong++; drill.queue.splice(Math.min(2, drill.queue.length), 0, drill.card); drillNext(); };
+$('#cmd-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = $('#cmd-input').value.trim();
+  const ok = cmdDrill.card[1].test(v);
+  $('#cmd-state').textContent = ok ? 'Yes -- that works.' : 'Not quite.';
+  $('#cmd-state').className = 'state ' + (ok ? 'good' : 'bad');
+  if (ok) setTimeout(cmdNext, 900);
+});
+$('#cmd-skip').onclick = () => { $('#cmd-state').textContent = 'journalctl ' + (cmdDrill.card[1].source.replace(/\\b|\(|\)|\^|\$/g, '').replace(/\\/g, '')); $('#cmd-state').className = 'state'; };
+
+$('#conf-copy').onclick = async () => { try { await navigator.clipboard.writeText(buildConf()); toast('Copied.'); } catch (e) { toast('Could not copy -- select the text instead.'); } };
+
+function toast(text) { const t = $('#toast'); t.textContent = text; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 3200); }
+
+/* ---------------- boot ---------------- */
+emit = emitAndExplain;
+out(`Welcome to observatory. journalctl is ready -- try "journalctl" to begin, or follow the lesson on the left.`, 'muted');
+openLesson(cur, {reset: !saved.done.length});
+renderRail();
+showView('learn');
+render();
+
+window.__xeTrainer = {handleKey, openLesson, parseArgs, runLine, get S() { return S; }, LESSONS};
+})();
+</script>
+</body>
+</html>
